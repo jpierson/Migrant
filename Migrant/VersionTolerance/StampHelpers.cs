@@ -34,12 +34,15 @@ namespace AntMicro.Migrant.VersionTolerance
 	{
 		public static bool IsStampNeeded(Type type)
 		{
-            return !Helpers.IsWriteableByPrimitiveWriter(type) || !new CollectionMetaToken(type).IsCollection;
+            return !Helpers.IsWriteableByPrimitiveWriter(type) /*|| !new CollectionMetaToken(type).IsCollection*/;
 		}
 
 		public static IEnumerable<FieldInfo> GetFieldsInSerializationOrder(Type type, bool withTransient = false)
 		{
-			return type.GetAllFields().Where(x => withTransient || Helpers.IsNotTransient(x)).OrderBy(x => x.Name);
+			return type.GetAllFields()
+                .Where(x => withTransient || Helpers.IsNotTransient(x))
+                .Where(x => !x.Attributes.HasFlag(FieldAttributes.NotSerialized))
+                .OrderBy(x => x.Name);
 		}
 	}
 }

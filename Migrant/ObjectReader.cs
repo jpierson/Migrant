@@ -79,7 +79,7 @@ namespace AntMicro.Migrant
 				objectsForSurrogates = new Dictionary<Type, Delegate>();
 			}
 			this.objectsForSurrogates = objectsForSurrogates;
-			this.readMethodsCache = readMethods ?? new Dictionary<Type, DynamicMethod>();
+			this.readMethodsCache = readMethods ?? new System.Collections.Concurrent.ConcurrentDictionary<Type, DynamicMethod>();
 			this.useGeneratedDeserialization = isGenerating;
 			typeList = new List<Type>();
 			methodList = new List<MethodInfo>();
@@ -255,11 +255,11 @@ namespace AntMicro.Migrant
 			{
 				ReadDelegate(type, objectId);
 			}
-			else
-			if(type.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(type.GetGenericTypeDefinition()))
-			{
-				ReadReadOnlyCollection(type, objectId);
-			}
+            //else
+            //if(type.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(type.GetGenericTypeDefinition()))
+            //{
+            //    ReadReadOnlyCollection(type, objectId);
+            //}
 			else
 			{
 				throw new InvalidOperationException(InternalErrorMessage);
@@ -276,11 +276,11 @@ namespace AntMicro.Migrant
 				return;
 			}
             var collectionMetaToken = new CollectionMetaToken(type);
-			if(collectionMetaToken.IsDictionary)
-			{
-				FillDictionary(collectionMetaToken, obj);
-				return;
-			}
+            //if(collectionMetaToken.IsDictionary)
+            //{
+            //    FillDictionary(collectionMetaToken, obj);
+            //    return;
+            //}
 
             if(!collectionMetaToken.IsCollection)
 			{
@@ -288,7 +288,7 @@ namespace AntMicro.Migrant
 			}
 
 			// so we can assume it is ICollection<T> or ICollection
-			FillCollection(collectionMetaToken.FormalElementType, obj);
+            //FillCollection(collectionMetaToken.FormalElementType, obj);
 		}
 
 		private object ReadField(Type formalType)
@@ -451,17 +451,17 @@ namespace AntMicro.Migrant
 			}
 		}
 
-		private void ReadReadOnlyCollection(Type type, int objectId)
-		{
-			var elementFormalType = type.GetGenericArguments()[0];
-			var length = reader.ReadInt32();
-			var array = Array.CreateInstance(elementFormalType, length);
-			for(var i = 0; i < length; i++)
-			{
-				array.SetValue(ReadField(elementFormalType), i);
-			}
-			deserializedObjects[objectId] = Activator.CreateInstance(type, array);
-		}
+        //private void ReadReadOnlyCollection(Type type, int objectId)
+        //{
+        //    var elementFormalType = type.GetGenericArguments()[0];
+        //    var length = reader.ReadInt32();
+        //    var array = Array.CreateInstance(elementFormalType, length);
+        //    for(var i = 0; i < length; i++)
+        //    {
+        //        array.SetValue(ReadField(elementFormalType), i);
+        //    }
+        //    deserializedObjects[objectId] = Activator.CreateInstance(type, array);
+        //}
 
 		private void FillArrayRowRecursive(Array array, int currentDimension, int[] position, Type elementFormalType)
 		{
@@ -508,7 +508,7 @@ namespace AntMicro.Migrant
 			if(typeList.Count <= typeId)
 			{
 				var typeName = reader.ReadString();
-				typeList.Add(Type.GetType(typeName));
+				typeList.Add(Type.GetType(typeName, true));
 			}
 			else
 			{
@@ -579,10 +579,10 @@ namespace AntMicro.Migrant
 			{
 				return CreationWay.Null;
 			}
-            if((new CollectionMetaToken(actualType)).IsCollection)
-			{
-				return CreationWay.DefaultCtor;
-			}
+            //if((new CollectionMetaToken(actualType)).IsCollection)
+            //{
+            //    return CreationWay.DefaultCt  or;
+            //}
 			if(typeof(ISpeciallySerializable).IsAssignableFrom(actualType))
 			{
 				return CreationWay.DefaultCtor;

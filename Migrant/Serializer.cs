@@ -28,6 +28,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Runtime.Serialization;
 using AntMicro.Migrant.Customization;
 using System.Reflection.Emit;
 
@@ -60,6 +62,29 @@ namespace AntMicro.Migrant
 			objectsForSurrogates = new Dictionary<Type, Delegate>();
 			surrogatesForObjects = new Dictionary<Type, Delegate>();
 			readMethodCache = new Dictionary<Type, DynamicMethod>();
+
+            this
+                .ForObject<Type>()
+                .SetSurrogate(type => new TypeSurrogate(type));
+            this
+                .ForSurrogate<TypeSurrogate>()
+                .SetObject(surrogate => surrogate.GetType());
+
+            this
+                .ForObject<System.Text.RegularExpressions.Regex>()
+                .SetSurrogate(serializable => new SerializableObjectSurrogate(serializable));
+            this
+                .ForObject<Exception>()
+                .SetSurrogate(serializable => new SerializableObjectSurrogate(serializable));
+            //_serializer
+            //    .ForObject()
+            //    .SetSurrogate(serializable => new SerializableObjectSurrogate(serializable));
+            //_serializer
+            //    .ForObject<Exception>()
+            //    .SetSurrogate(serializable => new SerializableObjectSurrogate(serializable));
+            this
+                .ForSurrogate<SerializableObjectSurrogate>()
+                .SetObject(surrogate => surrogate.GetObject());
 		}
 
 		/// <summary>
@@ -276,6 +301,74 @@ namespace AntMicro.Migrant
 
 			private readonly Serializer serializer;
 		}
+
+        public class SerializableObjectSurrogate
+        {
+            private readonly string _fullTypeName;
+            //private Dictionary<string, object> _valueDictionary;
+            private readonly Tuple<string, object>[] _data;
+
+
+            public SerializableObjectSurrogate(ISerializable obj)
+            {
+                //_obj = obj;
+
+                var type = obj.GetType();
+
+                var serializationInfo = new SerializationInfo(obj.GetType(), new FormatterConverter());
+                obj.GetObjectData(serializationInfo, new StreamingContext(StreamingContextStates.Clone));
+
+                //foreach (var data in serializationInfo)
+                //{
+                //    _valueDictionary.Add(data.Name, data.Value);
+                //}
+
+                var memberCount = serializationInfo.MemberCount;
+                var data = new Tuple<string, object>[memberCount];
+                var index = 0;
+                foreach (var entry in serializationInfo)
+                {
+                    data[index++] = Tuple.Create(entry.Name, entry.Value);
+                }
+                _data = data;
+                _fullTypeName = type.AssemblyQualifiedName;
+            }
+
+            public object GetObject()
+            {
+                var type = Type.GetType(_fullTypeName);
+
+                var constructor = type.GetConstructor(
+                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance,
+                    null,
+                    new Type[] { typeof(SerializationInfo), typeof(StreamingContext) },
+                    null);
+
+                var serializationInfo = new SerializationInfo(type, new FormatterConverter());
+                serializationInfo.SetType(type);
+                foreach (var value in _data)
+                {
+                    serializationInfo.AddValue(value.Item1, value.Item2);
+                }
+
+                return constructor.Invoke(new object[] { serializationInfo, null });
+            }
+        }
+
+        public class TypeSurrogate
+        {
+            private readonly string _fullTypeName;
+
+            public TypeSurrogate(Type type)
+            {
+                _fullTypeName = type.AssemblyQualifiedName;
+            }
+
+            public object GetType()
+            {
+                return Type.GetType(_fullTypeName);
+            }
+        }
 	}
 }
 

@@ -31,6 +31,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Collections;
+using System.Runtime.Serialization;
 using AntMicro.Migrant.Hooks;
 using AntMicro.Migrant.Generators;
 using System.Reflection.Emit;
@@ -352,24 +353,24 @@ namespace AntMicro.Migrant
 				return true;
 			}
 
-            var collectionToken = new CollectionMetaToken(o.GetType());
-			if(collectionToken.IsCollection)
-			{
-                // here we can have normal or extension method that needs to be treated differently
-                int count = collectionToken.CountMethod.IsStatic ? 
-                            (int)collectionToken.CountMethod.Invoke(null, new[] { o }) : 
-                            (int)collectionToken.CountMethod.Invoke(o, null); 
+            //var collectionToken = new CollectionMetaToken(o.GetType());
+            //if(collectionToken.IsCollection)
+            //{
+            //    // here we can have normal or extension method that needs to be treated differently
+            //    int count = collectionToken.CountMethod.IsStatic ? 
+            //                (int)collectionToken.CountMethod.Invoke(null, new[] { o }) : 
+            //                (int)collectionToken.CountMethod.Invoke(o, null); 
 
-				if(collectionToken.IsDictionary)
-				{
-					WriteDictionary(collectionToken, count, o);
-				}
-                else
-				{
-					WriteEnumerable(collectionToken.FormalElementType, count, (IEnumerable)o);
-				}
-				return true;
-			}
+            //    if(collectionToken.IsDictionary)
+            //    {
+            //        WriteDictionary(collectionToken, count, o);
+            //    }
+            //    else
+            //    {
+            //        WriteEnumerable(collectionToken.FormalElementType, count, (IEnumerable)o);
+            //    }
+            //    return true;
+            //}
 			return false;
 		}
 
@@ -593,13 +594,13 @@ namespace AntMicro.Migrant
 			}
 			if(actualType == typeof(byte[]))
 			{
-				return (writer, objToWrite) => 
-				{
-					writer.Write(1); // rank of the array
-					var array = (byte[])objToWrite;
-					writer.Write(array.Length);
-					writer.Write(array);
-				};
+                return (writer, objToWrite) =>
+                {
+                    writer.Write(1); // rank of the array
+                    var array = (byte[])objToWrite;
+                    writer.Write(array.Length);
+                    writer.Write(array);
+                };
 			}
 			return null;
 		}

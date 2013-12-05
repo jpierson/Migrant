@@ -417,7 +417,9 @@ namespace AntMicro.Migrant.Tests
             var copy = SerializerClone(regex) as Regex;
 
             // TODO: Not sure how to test for equality once serialization succeeds
-            Assert.AreEqual(regex, copy);
+            Assert.AreEqual(regex.ToString(), copy.ToString());
+            Assert.AreEqual(regex.Options, copy.Options);
+            Assert.AreEqual(regex.RightToLeft, copy.RightToLeft);
         }
 
         [Test]
@@ -468,7 +470,7 @@ namespace AntMicro.Migrant.Tests
             var copy = SerializerClone(collection);
 
             CollectionAssert.AreEquivalent(collection, copy);
-            Assert.AreEqual(collection.OtherValue, copy.OtherValue);
+            Assert.AreEqual(collection.OtherValue, copy.OtherValue, "Non-element value did not survive serialization");
         }
 
         [Test]
@@ -479,7 +481,7 @@ namespace AntMicro.Migrant.Tests
             var copy = SerializerClone(list);
 
             CollectionAssert.AreEquivalent(list, copy);
-            Assert.AreEqual(list.OtherValue, copy.OtherValue);
+            Assert.AreEqual(list.OtherValue, copy.OtherValue, "Non-element value did not survive serialization");
         }
 
         [Test]
@@ -490,7 +492,7 @@ namespace AntMicro.Migrant.Tests
             var copy = SerializerClone(enumerable);
 
             CollectionAssert.AreEquivalent(enumerable, copy);
-            Assert.AreEqual(enumerable.OtherValue, copy.OtherValue);
+            Assert.AreEqual(enumerable.OtherValue, copy.OtherValue, "Non-element value did not survive serialization");
         }
 
         [Test]

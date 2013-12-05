@@ -108,11 +108,11 @@ namespace Migrant.Generators
 			{
 				GenerateReadDelegate(formalType, objectIdLocal);
 			}
-			else
-			if(formalType.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(formalType.GetGenericTypeDefinition()))
-			{
-				GenerateReadReadOnlyCollection(formalType, objectIdLocal);
-			}
+            //else
+            //if(formalType.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(formalType.GetGenericTypeDefinition()))
+            //{
+            //    GenerateReadReadOnlyCollection(formalType, objectIdLocal);
+            //}
 			else
 			{
 				throw new InvalidOperationException(InternalErrorMessage + "GenerateReadNotPrecreated");
@@ -237,17 +237,18 @@ namespace Migrant.Generators
 			}
 
             var collectionToken = new CollectionMetaToken(formalType);
-			if(collectionToken.IsDictionary)
-			{
-				GenerateFillDictionary(collectionToken, formalType, objectIdLocal);
-				return;
-			}
-            else if(!collectionToken.IsCollection)
+            //if(collectionToken.IsDictionary)
+            //{
+            //    GenerateFillDictionary(collectionToken, formalType, objectIdLocal);
+            //    return;
+            //}
+            //else 
+            if(!collectionToken.IsCollection)
 			{
 				throw new InvalidOperationException(InternalErrorMessage);
 			}
 
-			GenerateFillCollection(collectionToken.FormalElementType, formalType, objectIdLocal);
+            //GenerateFillCollection(collectionToken.FormalElementType, formalType, objectIdLocal);
 		}
 
 		#region Collections generators
@@ -285,33 +286,33 @@ namespace Migrant.Generators
 			});
 		}
 				
-		private void GenerateReadReadOnlyCollection(Type type, LocalBuilder objectIdLocal)
-		{
-			var elementFormalType = type.GetGenericArguments()[0];
+        //private void GenerateReadReadOnlyCollection(Type type, LocalBuilder objectIdLocal)
+        //{
+        //    var elementFormalType = type.GetGenericArguments()[0];
 			
-			var lengthLocal = generator.DeclareLocal(typeof(Int32));
-			var arrayLocal = generator.DeclareLocal(elementFormalType.MakeArrayType());
+        //    var lengthLocal = generator.DeclareLocal(typeof(Int32));
+        //    var arrayLocal = generator.DeclareLocal(elementFormalType.MakeArrayType());
 			
-			GenerateReadPrimitive(typeof(Int32));
-			generator.Emit(OpCodes.Stloc, lengthLocal); // read number of elements in the collection
+        //    GenerateReadPrimitive(typeof(Int32));
+        //    generator.Emit(OpCodes.Stloc, lengthLocal); // read number of elements in the collection
 			
-			generator.Emit(OpCodes.Ldloc, lengthLocal);
-			generator.Emit(OpCodes.Newarr, elementFormalType);
-			generator.Emit(OpCodes.Stloc, arrayLocal); // create array
+        //    generator.Emit(OpCodes.Ldloc, lengthLocal);
+        //    generator.Emit(OpCodes.Newarr, elementFormalType);
+        //    generator.Emit(OpCodes.Stloc, arrayLocal); // create array
 			
-			GeneratorHelper.GenerateLoop(generator, lengthLocal, lc => {
-				generator.Emit(OpCodes.Ldloc, arrayLocal);
-				generator.Emit(OpCodes.Ldloc, lc);
-				GenerateReadField(elementFormalType);
-				generator.Emit(OpCodes.Stelem, elementFormalType);
-			});
+        //    GeneratorHelper.GenerateLoop(generator, lengthLocal, lc => {
+        //        generator.Emit(OpCodes.Ldloc, arrayLocal);
+        //        generator.Emit(OpCodes.Ldloc, lc);
+        //        GenerateReadField(elementFormalType);
+        //        generator.Emit(OpCodes.Stelem, elementFormalType);
+        //    });
 			
-			SaveNewDeserializedObject(objectIdLocal, () => {
-				generator.Emit(OpCodes.Ldloc, arrayLocal);
-				generator.Emit(OpCodes.Castclass, typeof(IList<>).MakeGenericType(elementFormalType));
-				generator.Emit(OpCodes.Newobj, type.GetConstructor(new [] { typeof(IList<>).MakeGenericType(elementFormalType) }));
-			});
-		}
+        //    SaveNewDeserializedObject(objectIdLocal, () => {
+        //        generator.Emit(OpCodes.Ldloc, arrayLocal);
+        //        generator.Emit(OpCodes.Castclass, typeof(IList<>).MakeGenericType(elementFormalType));
+        //        generator.Emit(OpCodes.Newobj, type.GetConstructor(new [] { typeof(IList<>).MakeGenericType(elementFormalType) }));
+        //    });
+        //}
 				
 		private void GenerateFillCollection(Type elementFormalType, Type collectionType, LocalBuilder objectIdLocal)
 		{

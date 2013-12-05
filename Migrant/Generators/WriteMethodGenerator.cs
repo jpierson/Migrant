@@ -187,12 +187,12 @@ namespace AntMicro.Migrant.Generators
                 });
                 return true;
             }
-            var collectionToken = new CollectionMetaToken(actualType);
-            if(collectionToken.IsCollection)
-            {
-                GenerateWriteCollection(collectionToken);
-                return true;
-            }
+            //var collectionToken = new CollectionMetaToken(actualType);
+            //if(collectionToken.IsCollection)
+            //{
+            //    GenerateWriteCollection(collectionToken);
+            //    return true;
+            //}
             return false;
         }
 
