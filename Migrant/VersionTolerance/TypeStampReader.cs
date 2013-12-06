@@ -33,16 +33,16 @@ namespace AntMicro.Migrant.VersionTolerance
 {
 	internal sealed class TypeStampReader
 	{
-		public TypeStampReader(PrimitiveReader reader, VersionToleranceLevel versionToleranceLevel)
+		public TypeStampReader(PrimitiveReader reader, VersionTolerancePolicy versionTolerancePolicy)
 		{
 			this.reader = reader;
-			this.versionToleranceLevel = versionToleranceLevel;
+            this.versionTolerancePolicy = versionTolerancePolicy;
 			stampCache = new Dictionary<Type, List<FieldInfoOrEntryToOmit>>();
 		}
 
 		public void ReadStamp(Type type)
 		{
-			if(!StampHelpers.IsStampNeeded(type))
+			if(!StampHelpers.IsStampNeeded(type, versionTolerancePolicy))
 			{
 				return;
 			}
@@ -63,7 +63,7 @@ namespace AntMicro.Migrant.VersionTolerance
 				stampCache.Add(type, StampHelpers.GetFieldsInSerializationOrder(type, true).Select(x => new FieldInfoOrEntryToOmit(x)).ToList());
 				return;
 			}
-			if(versionToleranceLevel == VersionToleranceLevel.Guid)
+            if (versionTolerancePolicy.VersionToleranceLevel == VersionToleranceLevel.Guid)
 			{
 				throw new InvalidOperationException(string.Format("The class was serialized with different module version id {0}, current one is {1}.",
 				                                                  moduleGuid, type.Module.ModuleVersionId));
@@ -80,11 +80,11 @@ namespace AntMicro.Migrant.VersionTolerance
 					// we have to read the data to properly move stream,
 					// but that's all - unless this is illegal from the
 					// version tolerance level point of view
-					if(versionToleranceLevel != VersionToleranceLevel.FieldRemoval && versionToleranceLevel != VersionToleranceLevel.FieldAdditionAndRemoval)
+					if(!versionTolerancePolicy.AllowFieldRemoval)
 					{
 						throw new InvalidOperationException(string.Format("Field {0} of type {1} was present in the old version of the class but is missing now. This is" +
 						                                                  "incompatible with selected version tolerance level which is {2}.", fieldName, fieldType,
-						                                                  versionToleranceLevel));
+                                                                          versionTolerancePolicy.VersionToleranceLevel));
 					}
 					result.Add(new FieldInfoOrEntryToOmit(fieldType));
 					continue;
@@ -103,11 +103,10 @@ namespace AntMicro.Migrant.VersionTolerance
 			// result should also contain transient fields, because some of them may
 			// be marked with the [Constructor] attribute
 			var transientFields = currentFields.Select(x => x.Value).Where(x => !Helpers.IsNotTransient(x)).Select(x => new FieldInfoOrEntryToOmit(x)).ToArray();
-			if(currentFields.Count - transientFields.Length > 0 && versionToleranceLevel != VersionToleranceLevel.FieldAddition && 
-			   versionToleranceLevel != VersionToleranceLevel.FieldAdditionAndRemoval)
+			if(currentFields.Count - transientFields.Length > 0 && !versionTolerancePolicy.AllowFieldAddition)
 			{
 				throw new InvalidOperationException(string.Format("Current version of the class {0} contains more fields than it had when it was serialized. With given" +
-				                                                  "version tolerance level {1} the serializer cannot proceed.", type, versionToleranceLevel));
+                                                                  "version tolerance level {1} the serializer cannot proceed.", type, versionTolerancePolicy.VersionToleranceLevel));
 			}
 			result.AddRange(transientFields);
 			stampCache.Add(type, result);
@@ -120,7 +119,7 @@ namespace AntMicro.Migrant.VersionTolerance
 
 		private readonly Dictionary<Type, List<FieldInfoOrEntryToOmit>> stampCache;
 		private readonly PrimitiveReader reader;
-		private readonly VersionToleranceLevel versionToleranceLevel;
+        private readonly VersionTolerancePolicy versionTolerancePolicy;
 	}
 }
 

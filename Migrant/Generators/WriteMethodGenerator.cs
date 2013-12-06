@@ -34,14 +34,18 @@ using System.Threading;
 using AntMicro.Migrant.Hooks;
 using System.Linq;
 using AntMicro.Migrant.VersionTolerance;
+using Migrant.Generators;
 
 namespace AntMicro.Migrant.Generators
 {
     internal class WriteMethodGenerator
     {
-        internal WriteMethodGenerator(Type typeToGenerate)
+        internal WriteMethodGenerator(
+            Type typeToGenerate,
+            VersionTolerancePolicy versionTolerancePolicy)
         {
             typeWeAreGeneratingFor = typeToGenerate;
+            this.versionTolerancePolicy = versionTolerancePolicy;
             ObjectWriter.CheckLegality(typeToGenerate);
             InitializeMethodInfos();
             if(!typeToGenerate.IsArray)
@@ -187,12 +191,12 @@ namespace AntMicro.Migrant.Generators
                 });
                 return true;
             }
-            //var collectionToken = new CollectionMetaToken(actualType);
-            //if(collectionToken.IsCollection)
-            //{
-            //    GenerateWriteCollection(collectionToken);
-            //    return true;
-            //}
+            var collectionToken = new CollectionMetaToken(actualType);
+            if (collectionToken.IsCollection && versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionToken))
+            {
+                GenerateWriteCollection(collectionToken);
+                return true;
+            }
             return false;
         }
 
@@ -331,6 +335,8 @@ namespace AntMicro.Migrant.Generators
 
         private void GenerateWriteCollection(CollectionMetaToken token)
         {
+            System.Diagnostics.Debug.Assert(versionTolerancePolicy.ShouldSerializeForVersionTolerance(token));
+
             Type enumerableType;
             Type enumeratorType;
             if(token.IsDictionary)
@@ -347,7 +353,7 @@ namespace AntMicro.Migrant.Generators
             }
 
             generator.DeclareLocal(enumeratorType); // iterator
-            if(token.IsDictionary)
+            if (token.IsDictionary)
             {
                 generator.DeclareLocal(token.FormalKeyType);
                 generator.DeclareLocal(token.FormalValueType);
@@ -612,6 +618,7 @@ namespace AntMicro.Migrant.Generators
         private readonly ILGenerator generator;
         private readonly DynamicMethod dynamicMethod;
         private readonly Type typeWeAreGeneratingFor;
+        private readonly VersionTolerancePolicy versionTolerancePolicy;
         private static int WriteArrayMethodCounter;
         private static readonly Type[] ParameterTypes = new [] {
             typeof(ObjectWriter),

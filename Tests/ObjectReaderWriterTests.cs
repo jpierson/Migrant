@@ -37,15 +37,16 @@ namespace AntMicro.Migrant.Tests
 		public void ShouldHandleTwoWritesAndReads()
 		{
 			var strings = new [] { "One", "Two" };
+		    var versionPolicy = new VersionTolerancePolicy(false, Customization.VersionToleranceLevel.Exact);
 
 			var stream = new MemoryStream();
-			var writer = new ObjectWriter(stream);
+            var writer = new ObjectWriter(stream, versionPolicy);
 			writer.WriteObject(strings[0]);
 			writer.WriteObject(strings[1]);
 			var position = stream.Position;
 
 			stream.Seek(0, SeekOrigin.Begin);
-			var reader = new ObjectReader(stream);
+            var reader = new ObjectReader(stream, versionPolicy);
 			Assert.AreEqual(strings[0], reader.ReadObject<string>());
 			Assert.AreEqual(strings[1], reader.ReadObject<string>());
 			Assert.AreEqual(position, stream.Position);

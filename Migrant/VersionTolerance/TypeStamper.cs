@@ -38,9 +38,9 @@ namespace AntMicro.Migrant.VersionTolerance
 			alreadyWritten = new HashSet<Type>();
 		}
 
-		public void Stamp(Type type)
+		public void Stamp(Type type, VersionTolerancePolicy versionPolicy)
 		{
-			if(!StampHelpers.IsStampNeeded(type))
+			if(!StampHelpers.IsStampNeeded(type, versionPolicy))
 			{
 				return;
 			}

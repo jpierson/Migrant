@@ -64,6 +64,11 @@ namespace AntMicro.Migrant
             surrogatesForObjects = new InheritanceAwareList<Delegate>();
 			readMethodCache = new Dictionary<Type, DynamicMethod>();
 
+            versionPolicy = new VersionTolerancePolicy(
+                //settings.VersionTolerance == VersionToleranceLevel.Exact || settings.VersionTolerance == VersionToleranceLevel.Guid,
+                settings.EnableFrameworkVersionCompatability,
+                settings.VersionTolerance);
+
             this
                 .ForObject<Type>()
                 .SetSurrogate(type => new TypeSurrogate(type));
@@ -100,8 +105,10 @@ namespace AntMicro.Migrant
 		public void Serialize(object obj, Stream stream)
 		{
 			WriteHeader(stream);
-			var writer = new ObjectWriter(stream, OnPreSerialization, OnPostSerialization, writeMethodCache, 
-			                              surrogatesForObjects, settings.SerializationMethod == Method.Generated);
+
+            var writer = new ObjectWriter(stream, versionPolicy, OnPreSerialization, OnPostSerialization, 
+                                          writeMethodCache, surrogatesForObjects, 
+                                          settings.SerializationMethod == Method.Generated);
 			writer.WriteObject(obj);
 			serializationDone = true;
 		}
@@ -165,8 +172,8 @@ namespace AntMicro.Migrant
 					"Could not deserialize data serialized with another version of serializer, namely {0}. Current is {1}.", version, VersionNumber));
 			}
 
-			var objectReader = new ObjectReader(stream, objectsForSurrogates, OnPostDeserialization, readMethodCache,
-			                                    settings.DeserializationMethod == Method.Generated, settings.VersionTolerance);
+			var objectReader = new ObjectReader(stream, versionPolicy, objectsForSurrogates, OnPostDeserialization, 
+                                                readMethodCache, settings.DeserializationMethod == Method.Generated);
 			var result = objectReader.ReadObject<T>();
 			deserializationDone = true;
 			return result;
@@ -234,7 +241,8 @@ namespace AntMicro.Migrant
 		private readonly Dictionary<Type, DynamicMethod> readMethodCache;
         private readonly InheritanceAwareList<Delegate> surrogatesForObjects;
         private readonly InheritanceAwareList<Delegate> objectsForSurrogates;
-		private const byte VersionNumber = 1;
+	    private readonly VersionTolerancePolicy versionPolicy;
+	    private const byte VersionNumber = 1;
 		private const byte Magic1 = 0x32;
 		private const byte Magic2 = 0x66;
 		private const byte Magic3 = 0x34;

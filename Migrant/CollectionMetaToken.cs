@@ -33,13 +33,7 @@ namespace AntMicro.Migrant
 {
 	internal class CollectionMetaToken
 	{
-        private bool _isCollection;
-
-	    public bool IsCollection
-	    {
-	        get { return _isCollection; }
-	        private set { /* NOOP */ }
-	    }
+        public bool IsCollection { get; private set; }
 
 	    public bool IsDictionary { get; private set; }
 

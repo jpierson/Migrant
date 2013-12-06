@@ -47,32 +47,35 @@ namespace AntMicro.Migrant
 	/// </summary>
 	public class ObjectReader
 	{
-		/// <summary>
-		/// Initializes a new instance of the <see cref="AntMicro.Migrant.ObjectReader" /> class.
-		/// </summary>
-		/// <param name='stream'>
-		/// Stream from which objects will be read.
-		/// </param>
-		/// <param name='objectsForSurrogates'>
-		/// Dictionary, containing callbacks that provide objects for given type of surrogate. Callbacks have to be of type Func&lt;T, object&gt; where
-		/// typeof(T) is type of surrogate.
-		/// </param>
-		/// <param name='postDeserializationCallback'>
-		/// Callback which will be called after deserialization of every unique object. Deserialized
-		/// object is given in the callback's only parameter.
-		/// </param>
-		/// <param name='readMethods'>
-		/// Cache in which generated read methods are stored and reused between instances of <see cref="AntMicro.Migrant.ObjectReader" />.
-		/// Can be null if one does not want to use the cache.
-		/// </param>
-		/// <param name='isGenerating'>
-		/// True if read methods are to be generated, false if one wants to use reflection.
-		/// </param>
-		/// <param name="versionToleranceLevel"> 
-		/// Describes the tolerance level of this reader when handling discrepancies in type description (new or missing fields, etc.).
-		/// </param> 
-        public ObjectReader(Stream stream, InheritanceAwareList<Delegate> objectsForSurrogates = null, Action<object> postDeserializationCallback = null, 
-		                    IDictionary<Type, DynamicMethod> readMethods = null, bool isGenerating = false, VersionToleranceLevel versionToleranceLevel = 0)
+	    /// <summary>
+	    /// Initializes a new instance of the <see cref="AntMicro.Migrant.ObjectReader" /> class.
+	    /// </summary>
+	    /// <param name='stream'>
+	    /// Stream from which objects will be read.
+	    /// </param>
+	    /// <param name="versionTolerancePolicy">
+	    /// Policy that controls how serialized object should be read to uphold version tolerance.
+	    /// </param>
+	    /// <param name='objectsForSurrogates'>
+	    /// Dictionary, containing callbacks that provide objects for given type of surrogate. Callbacks have to be of type Func&lt;T, object&gt; where
+	    /// typeof(T) is type of surrogate.
+	    /// </param>
+	    /// <param name='postDeserializationCallback'>
+	    /// Callback which will be called after deserialization of every unique object. Deserialized
+	    /// object is given in the callback's only parameter.
+	    /// </param>
+	    /// <param name='readMethods'>
+	    /// Cache in which generated read methods are stored and reused between instances of <see cref="AntMicro.Migrant.ObjectReader" />.
+	    /// Can be null if one does not want to use the cache.
+	    /// </param>
+	    /// <param name='isGenerating'>
+	    /// True if read methods are to be generated, false if one wants to use reflection.
+	    /// </param>
+	    /// <param name="versionToleranceLevel"> 
+	    /// Describes the tolerance level of this reader when handling discrepancies in type description (new or missing fields, etc.).
+	    /// </param> 
+	    public ObjectReader(Stream stream, VersionTolerancePolicy versionTolerancePolicy, InheritanceAwareList<Delegate> objectsForSurrogates = null, 
+                            Action<object> postDeserializationCallback = null, IDictionary<Type, DynamicMethod> readMethods = null, bool isGenerating = false)
 		{
 			if(objectsForSurrogates == null)
 			{
@@ -85,8 +88,8 @@ namespace AntMicro.Migrant
 			methodList = new List<MethodInfo>();
 			postDeserializationHooks = new List<Action>();
 			this.stream = stream;
-			this.postDeserializationCallback = postDeserializationCallback;
-			this.versionToleranceLevel = versionToleranceLevel;
+		    this.versionTolerancePolicy = versionTolerancePolicy;
+		    this.postDeserializationCallback = postDeserializationCallback;
 			PrepareForTheRead();
 		}
 
@@ -137,7 +140,7 @@ namespace AntMicro.Migrant
 		{
 			if(!readMethodsCache.ContainsKey(type))
 			{
-				var rmg = new ReadMethodGenerator(type, stamper);
+				var rmg = new ReadMethodGenerator(type, stamper, versionTolerancePolicy);
 				readMethodsCache.Add(type, rmg.Method);
 			}
 		}
@@ -152,7 +155,7 @@ namespace AntMicro.Migrant
 			delegatesCache = new Dictionary<Type, Func<int, object>>();
 			deserializedObjects = new AutoResizingList<object>(InitialCapacity);
 			reader = new PrimitiveReader(stream);
-			stamper = new TypeStampReader(reader, versionToleranceLevel);
+			stamper = new TypeStampReader(reader, versionTolerancePolicy);
 		}
 
 		internal static bool HasSpecialReadMethod(Type type)
@@ -176,18 +179,25 @@ namespace AntMicro.Migrant
 		private void ReadObjectInner(Type actualType, int objectId)
 		{
 			TouchObject(actualType, objectId);
-			switch(GetCreationWay(actualType))
-			{
-			case CreationWay.Null:
-				ReadNotPrecreated(actualType, objectId);
-				break;
-			case CreationWay.DefaultCtor:
-				UpdateElements(actualType, objectId);
-				break;
-			case CreationWay.Uninitialized:
-				UpdateFields(actualType, deserializedObjects[objectId]);
-				break;
-			}
+            if (Helpers.CanBeCreatedWithDataOnly(actualType))
+		    {
+		        ReadNotPrecreated(actualType, objectId);
+		    }
+            else
+            {
+                var collectionToken = new CollectionMetaToken(actualType);
+                if (ObjectReader.IsSpeciallySerializable(actualType) ||
+                    collectionToken.IsCollection &&
+                    versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionToken))
+                {
+                    UpdateElements(actualType, objectId);
+                }
+                else
+                {
+                    UpdateFields(actualType, deserializedObjects[objectId]);
+                }
+            }
+
 			var obj = deserializedObjects[objectId];
 			if(obj == null)
 			{
@@ -255,11 +265,11 @@ namespace AntMicro.Migrant
 			{
 				ReadDelegate(type, objectId);
 			}
-            //else
-            //if(type.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(type.GetGenericTypeDefinition()))
-            //{
-            //    ReadReadOnlyCollection(type, objectId);
-            //}
+            else
+            if(type.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(type.GetGenericTypeDefinition()))
+            {
+                ReadReadOnlyCollection(type, objectId);
+            }
 			else
 			{
 				throw new InvalidOperationException(InternalErrorMessage);
@@ -276,19 +286,23 @@ namespace AntMicro.Migrant
 				return;
 			}
             var collectionMetaToken = new CollectionMetaToken(type);
-            //if(collectionMetaToken.IsDictionary)
-            //{
-            //    FillDictionary(collectionMetaToken, obj);
-            //    return;
-            //}
 
-            if(!collectionMetaToken.IsCollection)
-			{
-				throw new InvalidOperationException(InternalErrorMessage);
-			}
+            if (versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionMetaToken))
+		    {
+		        if (collectionMetaToken.IsDictionary)
+		        {
+		            FillDictionary(collectionMetaToken, obj);
+		            return;
+		        }
 
-			// so we can assume it is ICollection<T> or ICollection
-            //FillCollection(collectionMetaToken.FormalElementType, obj);
+		        if (collectionMetaToken.IsCollection)
+		        {
+		            FillCollection(collectionMetaToken.FormalElementType, obj);
+                    return;
+		        }
+		    }
+
+		    throw new InvalidOperationException(InternalErrorMessage);
 		}
 
 		private object ReadField(Type formalType)
@@ -451,17 +465,17 @@ namespace AntMicro.Migrant
 			}
 		}
 
-        //private void ReadReadOnlyCollection(Type type, int objectId)
-        //{
-        //    var elementFormalType = type.GetGenericArguments()[0];
-        //    var length = reader.ReadInt32();
-        //    var array = Array.CreateInstance(elementFormalType, length);
-        //    for(var i = 0; i < length; i++)
-        //    {
-        //        array.SetValue(ReadField(elementFormalType), i);
-        //    }
-        //    deserializedObjects[objectId] = Activator.CreateInstance(type, array);
-        //}
+        private void ReadReadOnlyCollection(Type type, int objectId)
+        {
+            var elementFormalType = type.GetGenericArguments()[0];
+            var length = reader.ReadInt32();
+            var array = Array.CreateInstance(elementFormalType, length);
+            for(var i = 0; i < length; i++)
+            {
+                array.SetValue(ReadField(elementFormalType), i);
+            }
+            deserializedObjects[objectId] = Activator.CreateInstance(type, array);
+        }
 
 		private void FillArrayRowRecursive(Array array, int currentDimension, int[] position, Type elementFormalType)
 		{
@@ -558,10 +572,11 @@ namespace AntMicro.Migrant
 			}
 
 			object created = null;
-			switch(GetCreationWay(actualType))
+			switch(GetCreationWay(actualType, versionTolerancePolicy))
 			{
 			case CreationWay.Null:
 				break;
+            //case CreationWay.CollectionHack:
 			case CreationWay.DefaultCtor:
 				created = Activator.CreateInstance(actualType);
 				break;
@@ -573,22 +588,37 @@ namespace AntMicro.Migrant
 			return created;
 		}
 
-		internal static CreationWay GetCreationWay(Type actualType)
+		internal static CreationWay GetCreationWay(Type actualType, VersionTolerancePolicy versionPolicy)
 		{
 			if(Helpers.CanBeCreatedWithDataOnly(actualType))
 			{
 				return CreationWay.Null;
 			}
-            //if((new CollectionMetaToken(actualType)).IsCollection)
-            //{
-            //    return CreationWay.DefaultCt  or;
-            //}
-			if(typeof(ISpeciallySerializable).IsAssignableFrom(actualType))
+		    var collectionToken = new CollectionMetaToken(actualType);
+            if (collectionToken.IsCollection && versionPolicy.ShouldSerializeForVersionTolerance(collectionToken))
+		    {
+                return CreationWay.DefaultCtor;
+		    }
+            if (IsSpeciallySerializable(actualType))
 			{
 				return CreationWay.DefaultCtor;
 			}
+            if (actualType.GetConstructor(new Type[0]) != null)
+            {
+                // NOTE: This is an attempt to remedy the situation where collections
+                // were always assumed to have a default constructor. It may turn out
+                // however that we are just better off always using Uninitialized in
+                // these cases.
+                //return CreationWay.DefaultCtor;
+                return CreationWay.Uninitialized;
+            }
 			return CreationWay.Uninitialized;
 		}
+
+	    internal static bool IsSpeciallySerializable(Type type)
+	    {
+            return typeof(ISpeciallySerializable).IsAssignableFrom(type);
+	    }
 
 		private bool useGeneratedDeserialization;
 		internal AutoResizingList<object> deserializedObjects;
@@ -600,7 +630,8 @@ namespace AntMicro.Migrant
 		private readonly List<Type> typeList;
 		private readonly List<MethodInfo> methodList;
 		private readonly Stream stream;
-		internal readonly Action<object> postDeserializationCallback;
+	    private readonly VersionTolerancePolicy versionTolerancePolicy;
+	    internal readonly Action<object> postDeserializationCallback;
 		internal readonly List<Action> postDeserializationHooks;
         internal readonly InheritanceAwareList<Delegate> objectsForSurrogates;
 		private const int InitialCapacity = 128;
@@ -611,6 +642,9 @@ namespace AntMicro.Migrant
 		{
 			Uninitialized,
 			DefaultCtor,
+            // TEMP: Previuosly it was assumed that all collections had a default constructor. The
+            // CollectionHack option is a intermediate value used to separate the cases.
+            CollectionHack, 
 			Null
 		}
 	}

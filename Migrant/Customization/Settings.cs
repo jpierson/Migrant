@@ -53,24 +53,36 @@ namespace AntMicro.Migrant.Customization
 		/// </summary>
 		public VersionToleranceLevel VersionTolerance { get; private set; }
 
-		/// <summary>
-		/// Initializes a new instance of the <see cref="AntMicro.Migrant.Customization.Settings"/> class.
-		/// </summary>
-		/// <param name='serializationMethod'>
-		/// Method used for serialization.
-		/// </param>
-		/// <param name='deserializationMethod'>
-		/// Method used for deserialization.
-		/// </param>
-		/// <param name='versionTolerance'>
-		/// Specifies the possible level of difference between class layout when it was serialized and in the
-		/// moment of deserialization.
-		/// </param>
-		public Settings(Method serializationMethod = Method.Generated, Method deserializationMethod = Method.Generated, VersionToleranceLevel versionTolerance = 0)
+        /// <summary>
+        /// Gets a value that indicates whether built-in types are treated as a special case in order to support version tolerance
+        /// between different framework versions.
+        /// </summary>
+        public bool EnableFrameworkVersionCompatability { get; private set; }
+
+	    /// <summary>
+	    /// Initializes a new instance of the <see cref="AntMicro.Migrant.Customization.Settings"/> class.
+	    /// </summary>
+	    /// <param name='serializationMethod'>
+	    /// Method used for serialization.
+	    /// </param>
+	    /// <param name='deserializationMethod'>
+	    /// Method used for deserialization.
+	    /// </param>
+	    /// <param name='versionTolerance'>
+	    /// Specifies the possible level of difference between class layout when it was serialized and in the
+	    /// moment of deserialization.
+	    /// </param>
+	    /// <param name="enableFrameworkVersionCompatability">
+	    /// Specifies whether built-in types are treated as a special case in order to support version tolerance
+	    /// between different framework versions. The value specified is independent of the versionTolerence level 
+	    /// specified which still applies to custom types.
+	    /// </param>
+	    public Settings(Method serializationMethod = Method.Generated, Method deserializationMethod = Method.Generated, VersionToleranceLevel versionTolerance = 0, bool enableFrameworkVersionCompatability = true)
 		{
 			SerializationMethod = serializationMethod;
 			DeserializationMethod = deserializationMethod;
 			VersionTolerance = versionTolerance;
+            EnableFrameworkVersionCompatability = enableFrameworkVersionCompatability;
 		}
 	}
 }

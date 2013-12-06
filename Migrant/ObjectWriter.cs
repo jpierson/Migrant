@@ -70,7 +70,7 @@ namespace AntMicro.Migrant
 		/// <param name='isGenerating'>
 		/// True if write methods are to be generated, false if one wants to use reflection.
 		/// </param>
-		public ObjectWriter(Stream stream, Action<object> preSerializationCallback = null, 
+		public ObjectWriter(Stream stream, VersionTolerancePolicy versionTolerancePolicy,  Action<object> preSerializationCallback = null, 
 		                    Action<object> postSerializationCallback = null, IDictionary<Type, DynamicMethod> writeMethodCache = null,
                             InheritanceAwareList<Delegate> surrogatesForObjects = null, bool isGenerating = true)
 		{
@@ -88,7 +88,8 @@ namespace AntMicro.Migrant
 			typeIndices = new Dictionary<Type, int>();
 			methodIndices = new Dictionary<MethodInfo, int>();
 			this.stream = stream;
-			this.preSerializationCallback = preSerializationCallback;
+		    this.versionTolerancePolicy = versionTolerancePolicy;
+		    this.preSerializationCallback = preSerializationCallback;
 			this.postSerializationCallback = postSerializationCallback;
 			PrepareForNextWrite();
 		}
@@ -227,7 +228,7 @@ namespace AntMicro.Migrant
 
 		internal void Stamp(Type type)
 		{
-			typeStamper.Stamp(type);
+			typeStamper.Stamp(type, versionTolerancePolicy);
 		}
 
 		internal static bool HasSpecialWriteMethod(Type type)
@@ -354,24 +355,24 @@ namespace AntMicro.Migrant
 				return true;
 			}
 
-            //var collectionToken = new CollectionMetaToken(o.GetType());
-            //if(collectionToken.IsCollection)
-            //{
-            //    // here we can have normal or extension method that needs to be treated differently
-            //    int count = collectionToken.CountMethod.IsStatic ? 
-            //                (int)collectionToken.CountMethod.Invoke(null, new[] { o }) : 
-            //                (int)collectionToken.CountMethod.Invoke(o, null); 
+            var collectionToken = new CollectionMetaToken(o.GetType());
+            if (collectionToken.IsCollection && versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionToken))
+            {
+                // here we can have normal or extension method that needs to be treated differently
+                int count = collectionToken.CountMethod.IsStatic ?
+                            (int)collectionToken.CountMethod.Invoke(null, new[] { o }) :
+                            (int)collectionToken.CountMethod.Invoke(o, null);
 
-            //    if(collectionToken.IsDictionary)
-            //    {
-            //        WriteDictionary(collectionToken, count, o);
-            //    }
-            //    else
-            //    {
-            //        WriteEnumerable(collectionToken.FormalElementType, count, (IEnumerable)o);
-            //    }
-            //    return true;
-            //}
+                if (collectionToken.IsDictionary)
+                {
+                    WriteDictionary(collectionToken, count, o);
+                }
+                else
+                {
+                    WriteEnumerable(collectionToken.FormalElementType, count, (IEnumerable)o);
+                }
+                return true;
+            }
 			return false;
 		}
 
@@ -570,7 +571,7 @@ namespace AntMicro.Migrant
 				return WriteObjectUsingReflection;
 			}
 
-			var method = new WriteMethodGenerator(actualType).Method;
+			var method = new WriteMethodGenerator(actualType, versionTolerancePolicy).Method;
 			var result = (Action<PrimitiveWriter, object>)method.CreateDelegate(typeof(Action<PrimitiveWriter, object>), this);
 			if(writeMethodCache != null)
 			{
@@ -615,7 +616,8 @@ namespace AntMicro.Migrant
 		private HashSet<int> inlineWritten;
 		private readonly bool isGenerating;
 		private readonly Stream stream;
-		private readonly Action<object> preSerializationCallback;
+	    private readonly VersionTolerancePolicy versionTolerancePolicy;
+	    private readonly Action<object> preSerializationCallback;
 		private readonly Action<object> postSerializationCallback;
 		private readonly List<Action> postSerializationHooks;
 		private readonly Dictionary<Type, int> typeIndices;

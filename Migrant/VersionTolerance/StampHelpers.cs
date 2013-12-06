@@ -32,9 +32,19 @@ namespace AntMicro.Migrant.VersionTolerance
 {
 	internal static class StampHelpers
 	{
-		public static bool IsStampNeeded(Type type)
+		public static bool IsStampNeeded(Type type, VersionTolerancePolicy versionPolicy)
 		{
-            return !Helpers.IsWriteableByPrimitiveWriter(type) /*|| !new CollectionMetaToken(type).IsCollection*/;
+		    if (!Helpers.IsWriteableByPrimitiveWriter(type))
+		    {
+		        return true;
+		    }
+
+            // OPTIMIZE: Creating a new CollectionMetaToken just to test for IsSollection seems to be
+            // wasteful. Ensure that if IsStampNeeded called frequently that we are reusing a single
+            // cached instance of CollectionMetaToken instead.
+		    var collectionToken = new CollectionMetaToken(type);
+
+            return !(collectionToken.IsCollection && versionPolicy.ShouldSerializeForVersionTolerance(collectionToken));
 		}
 
 		public static IEnumerable<FieldInfo> GetFieldsInSerializationOrder(Type type, bool withTransient = false)

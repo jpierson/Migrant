@@ -41,9 +41,13 @@ namespace Migrant.Generators
 {
 	internal sealed class ReadMethodGenerator
 	{
-		public ReadMethodGenerator(Type typeToGenerate, TypeStampReader stampReader)
+        public ReadMethodGenerator(
+            Type typeToGenerate, 
+            TypeStampReader stampReader, 
+            VersionTolerancePolicy versionTolerancePolicy)
 		{
 			this.stampReader = stampReader;
+            this.versionTolerancePolicy = versionTolerancePolicy;
 			if (typeToGenerate.IsArray)
 			{
 				dynamicMethod = new DynamicMethod("Read", typeof(object), ParameterTypes, true);
@@ -108,11 +112,11 @@ namespace Migrant.Generators
 			{
 				GenerateReadDelegate(formalType, objectIdLocal);
 			}
-            //else
-            //if(formalType.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(formalType.GetGenericTypeDefinition()))
-            //{
-            //    GenerateReadReadOnlyCollection(formalType, objectIdLocal);
-            //}
+            else
+            if(formalType.IsGenericType && typeof(ReadOnlyCollection<>).IsAssignableFrom(formalType.GetGenericTypeDefinition()))
+            {
+                GenerateReadReadOnlyCollection(formalType, objectIdLocal);
+            }
 			else
 			{
 				throw new InvalidOperationException(InternalErrorMessage + "GenerateReadNotPrecreated");
@@ -153,19 +157,23 @@ namespace Migrant.Generators
 			generator.Emit(OpCodes.Stloc, objectIdLocal);
 
 			GenerateTouchObject(formalType);
-			
-			switch(ObjectReader.GetCreationWay(formalType))
-			{
-			case ObjectReader.CreationWay.Null:
-				GenerateReadNotPrecreated(formalType, objectIdLocal);
-				break;
-			case ObjectReader.CreationWay.DefaultCtor:
-				GenerateUpdateElements(formalType, objectIdLocal);
-				break;
-			case ObjectReader.CreationWay.Uninitialized:
-				GenerateUpdateFields(formalType, objectIdLocal);
-				break;
-			}
+
+            if (Helpers.CanBeCreatedWithDataOnly(formalType))
+		    {
+		        GenerateReadNotPrecreated(formalType, objectIdLocal);
+		    }
+            else
+            {
+                if (ObjectReader.IsSpeciallySerializable(formalType) ||
+                    IsVersionTolerantCollectionType(formalType))
+                {
+                    GenerateUpdateElements(formalType, objectIdLocal);
+                }
+                else
+                {
+                    GenerateUpdateFields(formalType, objectIdLocal);
+                }
+            }
 			
 			PushDeserializedObjectOntoStack(objectIdLocal);
 			generator.Emit(OpCodes.Brfalse, finish);
@@ -237,18 +245,22 @@ namespace Migrant.Generators
 			}
 
             var collectionToken = new CollectionMetaToken(formalType);
-            //if(collectionToken.IsDictionary)
-            //{
-            //    GenerateFillDictionary(collectionToken, formalType, objectIdLocal);
-            //    return;
-            //}
-            //else 
-            if(!collectionToken.IsCollection)
-			{
-				throw new InvalidOperationException(InternalErrorMessage);
-			}
+            if (versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionToken))
+		    {
+		        if (collectionToken.IsDictionary)
+		        {
+		            GenerateFillDictionary(collectionToken, formalType, objectIdLocal);
+		            return;
+		        }
+		        
+                if (collectionToken.IsCollection)
+		        {
+		            GenerateFillCollection(collectionToken.FormalElementType, formalType, objectIdLocal);
+		            return;
+		        }
+		    }
 
-            //GenerateFillCollection(collectionToken.FormalElementType, formalType, objectIdLocal);
+		    throw new InvalidOperationException(InternalErrorMessage);
 		}
 
 		#region Collections generators
@@ -285,34 +297,36 @@ namespace Migrant.Generators
 				}
 			});
 		}
-				
-        //private void GenerateReadReadOnlyCollection(Type type, LocalBuilder objectIdLocal)
-        //{
-        //    var elementFormalType = type.GetGenericArguments()[0];
-			
-        //    var lengthLocal = generator.DeclareLocal(typeof(Int32));
-        //    var arrayLocal = generator.DeclareLocal(elementFormalType.MakeArrayType());
-			
-        //    GenerateReadPrimitive(typeof(Int32));
-        //    generator.Emit(OpCodes.Stloc, lengthLocal); // read number of elements in the collection
-			
-        //    generator.Emit(OpCodes.Ldloc, lengthLocal);
-        //    generator.Emit(OpCodes.Newarr, elementFormalType);
-        //    generator.Emit(OpCodes.Stloc, arrayLocal); // create array
-			
-        //    GeneratorHelper.GenerateLoop(generator, lengthLocal, lc => {
-        //        generator.Emit(OpCodes.Ldloc, arrayLocal);
-        //        generator.Emit(OpCodes.Ldloc, lc);
-        //        GenerateReadField(elementFormalType);
-        //        generator.Emit(OpCodes.Stelem, elementFormalType);
-        //    });
-			
-        //    SaveNewDeserializedObject(objectIdLocal, () => {
-        //        generator.Emit(OpCodes.Ldloc, arrayLocal);
-        //        generator.Emit(OpCodes.Castclass, typeof(IList<>).MakeGenericType(elementFormalType));
-        //        generator.Emit(OpCodes.Newobj, type.GetConstructor(new [] { typeof(IList<>).MakeGenericType(elementFormalType) }));
-        //    });
-        //}
+
+        private void GenerateReadReadOnlyCollection(Type type, LocalBuilder objectIdLocal)
+        {
+            var elementFormalType = type.GetGenericArguments()[0];
+
+            var lengthLocal = generator.DeclareLocal(typeof(Int32));
+            var arrayLocal = generator.DeclareLocal(elementFormalType.MakeArrayType());
+
+            GenerateReadPrimitive(typeof(Int32));
+            generator.Emit(OpCodes.Stloc, lengthLocal); // read number of elements in the collection
+
+            generator.Emit(OpCodes.Ldloc, lengthLocal);
+            generator.Emit(OpCodes.Newarr, elementFormalType);
+            generator.Emit(OpCodes.Stloc, arrayLocal); // create array
+
+            GeneratorHelper.GenerateLoop(generator, lengthLocal, lc =>
+            {
+                generator.Emit(OpCodes.Ldloc, arrayLocal);
+                generator.Emit(OpCodes.Ldloc, lc);
+                GenerateReadField(elementFormalType);
+                generator.Emit(OpCodes.Stelem, elementFormalType);
+            });
+
+            SaveNewDeserializedObject(objectIdLocal, () =>
+            {
+                generator.Emit(OpCodes.Ldloc, arrayLocal);
+                generator.Emit(OpCodes.Castclass, typeof(IList<>).MakeGenericType(elementFormalType));
+                generator.Emit(OpCodes.Newobj, type.GetConstructor(new[] { typeof(IList<>).MakeGenericType(elementFormalType) }));
+            });
+        }
 				
 		private void GenerateFillCollection(Type elementFormalType, Type collectionType, LocalBuilder objectIdLocal)
 		{
@@ -782,32 +796,61 @@ namespace Migrant.Generators
 			PushTypeOntoStack(formalType);
 			generator.Emit(OpCodes.Stloc, objectTypeLocal);
 
-			switch(ObjectReader.GetCreationWay(formalType))
-			{
-			case ObjectReader.CreationWay.Null:
-				break;
-			case ObjectReader.CreationWay.DefaultCtor:
+            //if (!Helpers.CanBeCreatedWithDataOnly(formalType))
+            //{
+            //    var collectionToken = new CollectionMetaToken(formalType);
+            //    if (collectionToken.IsCollection &&
+            //        versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionToken))
+            //    {
+            //        // execute if <<localId>> was not found in DOC
+            //        PushDeserializedObjectsCollectionOntoStack();
+
+            //        generator.Emit(OpCodes.Ldloc, objectIdLocal); // first argument
+            //        generator.Emit(OpCodes.Ldloc, objectTypeLocal);
+            //        generator.Emit(OpCodes.Call, Helpers.GetMethodInfo(() => Activator.CreateInstance(typeof(void)))); // second argument
+
+            //        generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<AutoResizingList<object>>(x => x.SetItem(0, new object())));
+            //    }
+            //    else
+            //    {
+            //        // execute if <<localId>> was not found in DOC
+            //        PushDeserializedObjectsCollectionOntoStack();
+
+            //        generator.Emit(OpCodes.Ldloc, objectIdLocal); // first argument
+            //        //PushTypeOntoStack(formalType);
+            //        generator.Emit(OpCodes.Ldloc, objectTypeLocal);
+            //        generator.Emit(OpCodes.Call, Helpers.GetMethodInfo(() => FormatterServices.GetUninitializedObject(typeof(void)))); // second argument
+
+            //        generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<AutoResizingList<object>>(x => x.SetItem(0, new object())));
+            //    }   
+            //}
+            switch (ObjectReader.GetCreationWay(formalType, versionTolerancePolicy))
+            {
+                case ObjectReader.CreationWay.Null:
+                    break;
+                case ObjectReader.CreationWay.DefaultCtor:
+                //case ObjectReader.CreationWay.CollectionHack:
                     // execute if <<localId>> was not found in DOC
-				PushDeserializedObjectsCollectionOntoStack();
-					
-				generator.Emit(OpCodes.Ldloc, objectIdLocal); // first argument
-				generator.Emit(OpCodes.Ldloc, objectTypeLocal);
-				generator.Emit(OpCodes.Call, Helpers.GetMethodInfo(() => Activator.CreateInstance(typeof(void)))); // second argument
-					
-				generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<AutoResizingList<object>>(x => x.SetItem(0, new object())));
-				break;
-			case ObjectReader.CreationWay.Uninitialized:
+                    PushDeserializedObjectsCollectionOntoStack();
+
+                    generator.Emit(OpCodes.Ldloc, objectIdLocal); // first argument
+                    generator.Emit(OpCodes.Ldloc, objectTypeLocal);
+                    generator.Emit(OpCodes.Call, Helpers.GetMethodInfo(() => Activator.CreateInstance(typeof(void)))); // second argument
+
+                    generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<AutoResizingList<object>>(x => x.SetItem(0, new object())));
+                    break;
+                case ObjectReader.CreationWay.Uninitialized:
                     // execute if <<localId>> was not found in DOC
-				PushDeserializedObjectsCollectionOntoStack();
-					
-				generator.Emit(OpCodes.Ldloc, objectIdLocal); // first argument
+                    PushDeserializedObjectsCollectionOntoStack();
+
+                    generator.Emit(OpCodes.Ldloc, objectIdLocal); // first argument
                     //PushTypeOntoStack(formalType);
-				generator.Emit(OpCodes.Ldloc, objectTypeLocal);
-				generator.Emit(OpCodes.Call, Helpers.GetMethodInfo(() => FormatterServices.GetUninitializedObject(typeof(void)))); // second argument
-					
-				generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<AutoResizingList<object>>(x => x.SetItem(0, new object())));
-				break;
-			}
+                    generator.Emit(OpCodes.Ldloc, objectTypeLocal);
+                    generator.Emit(OpCodes.Call, Helpers.GetMethodInfo(() => FormatterServices.GetUninitializedObject(typeof(void)))); // second argument
+
+                    generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<AutoResizingList<object>>(x => x.SetItem(0, new object())));
+                    break;
+            }
 		}
 
 		private void GenerateReadType()
@@ -826,6 +869,14 @@ namespace Migrant.Generators
 			generator.Emit(OpCodes.Call, Helpers.GetMethodInfo<ObjectReader, MethodInfo>(or => or.ReadMethod()));
 		}
 
+	    private bool IsVersionTolerantCollectionType(Type type)
+	    {
+	        var collectionToken = new CollectionMetaToken(type);
+	        return
+	            collectionToken.IsCollection &&
+	            versionTolerancePolicy.ShouldSerializeForVersionTolerance(collectionToken);
+	    }
+
 		public DynamicMethod Method
 		{
 			get
@@ -835,8 +886,11 @@ namespace Migrant.Generators
 		}
 
 		private ILGenerator generator;
+        //private bool _serializeBuiltInTypesForVersionTolerance;	    
+	    private readonly VersionTolerancePolicy versionTolerancePolicy;
 		private readonly DynamicMethod dynamicMethod;
 		private readonly TypeStampReader stampReader;
+
 		private const string InternalErrorMessage = "Internal error: should not reach here.";
 		private const string CouldNotFindAddErrorMessage = "Could not find suitable Add method for the type {0}.";
 		private static readonly Type[] ParameterTypes = new [] {

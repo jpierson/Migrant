@@ -40,6 +40,7 @@
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="ConstructorAttribute.cs" />
     <Compile Include="Consts.cs" />
+    <Compile Include="Generators\VersionTolerancePolicy.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="ISpeciallySerializable.cs" />
     <Compile Include="ObjectIdentifier.cs" />
