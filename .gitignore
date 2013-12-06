@@ -11,4 +11,6 @@ obj
 #ide
 *.pidb
 *.userprefs
+*.suo
+*.user
 

@@ -32,6 +32,7 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using AntMicro.Migrant.Customization;
 using System.Reflection.Emit;
+using AntMicro.Migrant.Utilities;
 
 namespace AntMicro.Migrant
 {
@@ -59,8 +60,8 @@ namespace AntMicro.Migrant
 			}
 			this.settings = settings;
 			writeMethodCache = new Dictionary<Type, DynamicMethod>();
-			objectsForSurrogates = new Dictionary<Type, Delegate>();
-			surrogatesForObjects = new Dictionary<Type, Delegate>();
+            objectsForSurrogates = new InheritanceAwareList<Delegate>();
+            surrogatesForObjects = new InheritanceAwareList<Delegate>();
 			readMethodCache = new Dictionary<Type, DynamicMethod>();
 
             this
@@ -231,8 +232,8 @@ namespace AntMicro.Migrant
 		private readonly Settings settings;
 		private readonly Dictionary<Type, DynamicMethod> writeMethodCache;
 		private readonly Dictionary<Type, DynamicMethod> readMethodCache;
-		private readonly Dictionary<Type, Delegate> surrogatesForObjects;
-		private readonly Dictionary<Type, Delegate> objectsForSurrogates;
+        private readonly InheritanceAwareList<Delegate> surrogatesForObjects;
+        private readonly InheritanceAwareList<Delegate> objectsForSurrogates;
 		private const byte VersionNumber = 1;
 		private const byte Magic1 = 0x32;
 		private const byte Magic2 = 0x66;
@@ -264,7 +265,7 @@ namespace AntMicro.Migrant
 				{
 					throw new InvalidOperationException("Cannot set objects for surrogates after any deserialization is done.");
 				}
-				serializer.objectsForSurrogates[typeof(TSurrogate)] = callback;
+                serializer.objectsForSurrogates.AddOrReplace(typeof(TSurrogate), callback);
 			}
 
 			private readonly Serializer serializer;
@@ -296,7 +297,7 @@ namespace AntMicro.Migrant
 				{
 					throw new InvalidOperationException("Cannot set surrogates for objects after any serialization is done.");
 				}
-				serializer.surrogatesForObjects[typeof(TObject)] = callback;
+                serializer.surrogatesForObjects.AddOrReplace(typeof(TObject), callback);
 			}
 
 			private readonly Serializer serializer;

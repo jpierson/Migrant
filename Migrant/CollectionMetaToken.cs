@@ -31,7 +31,7 @@ using System.Collections;
 
 namespace AntMicro.Migrant
 {
-	public class CollectionMetaToken
+	internal class CollectionMetaToken
 	{
         private bool _isCollection;
 
