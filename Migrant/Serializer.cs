@@ -26,6 +26,7 @@
   WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -59,10 +60,10 @@ namespace AntMicro.Migrant
 				settings = new Settings(); // default settings
 			}
 			this.settings = settings;
-			writeMethodCache = new Dictionary<Type, DynamicMethod>();
+            writeMethodCache = new ConcurrentDictionary<Type, DynamicMethod>();
             objectsForSurrogates = new InheritanceAwareList<Delegate>();
             surrogatesForObjects = new InheritanceAwareList<Delegate>();
-			readMethodCache = new Dictionary<Type, DynamicMethod>();
+            readMethodCache = new ConcurrentDictionary<Type, DynamicMethod>();
 
             versionPolicy = new VersionTolerancePolicy(
                 //settings.VersionTolerance == VersionToleranceLevel.Exact || settings.VersionTolerance == VersionToleranceLevel.Guid,
@@ -244,8 +245,8 @@ namespace AntMicro.Migrant
 		private bool serializationDone;
 		private bool deserializationDone;
 		private readonly Settings settings;
-		private readonly Dictionary<Type, DynamicMethod> writeMethodCache;
-		private readonly Dictionary<Type, DynamicMethod> readMethodCache;
+		private readonly ConcurrentDictionary<Type, DynamicMethod> writeMethodCache;
+		private readonly ConcurrentDictionary<Type, DynamicMethod> readMethodCache;
         private readonly InheritanceAwareList<Delegate> surrogatesForObjects;
         private readonly InheritanceAwareList<Delegate> objectsForSurrogates;
 	    private readonly VersionTolerancePolicy versionPolicy;

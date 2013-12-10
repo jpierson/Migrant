@@ -26,6 +26,7 @@
   WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -71,7 +72,7 @@ namespace AntMicro.Migrant
 		/// True if write methods are to be generated, false if one wants to use reflection.
 		/// </param>
 		public ObjectWriter(Stream stream, VersionTolerancePolicy versionTolerancePolicy,  Action<object> preSerializationCallback = null, 
-		                    Action<object> postSerializationCallback = null, IDictionary<Type, DynamicMethod> writeMethodCache = null,
+		                    Action<object> postSerializationCallback = null, ConcurrentDictionary<Type, DynamicMethod> writeMethodCache = null,
                             InheritanceAwareList<Delegate> surrogatesForObjects = null, bool isGenerating = true)
 		{
 			if(surrogatesForObjects == null)
@@ -575,7 +576,7 @@ namespace AntMicro.Migrant
 			var result = (Action<PrimitiveWriter, object>)method.CreateDelegate(typeof(Action<PrimitiveWriter, object>), this);
 			if(writeMethodCache != null)
 			{
-				writeMethodCache.Add(actualType, method);
+				writeMethodCache.TryAdd(actualType, method);
 			}
 			return result;
 		}
@@ -623,7 +624,7 @@ namespace AntMicro.Migrant
 		private readonly Dictionary<Type, int> typeIndices;
 		private readonly Dictionary<MethodInfo, int> methodIndices;
 		private readonly Dictionary<Type, bool> transientTypeCache;
-		private readonly IDictionary<Type, DynamicMethod> writeMethodCache;
+        private readonly ConcurrentDictionary<Type, DynamicMethod> writeMethodCache;
         private readonly InheritanceAwareList<Delegate> surrogatesForObjects;
 		private readonly List<Action<PrimitiveWriter, object>> writeMethods;
 		private readonly Stack<Type> currentlyWrittenTypes;

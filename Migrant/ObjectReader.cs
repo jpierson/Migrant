@@ -26,6 +26,7 @@
   WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Reflection;
@@ -71,8 +72,8 @@ namespace AntMicro.Migrant
 	    /// <param name='isGenerating'>
 	    /// True if read methods are to be generated, false if one wants to use reflection.
 	    /// </param>
-	    public ObjectReader(Stream stream, VersionTolerancePolicy versionTolerancePolicy, InheritanceAwareList<Delegate> objectsForSurrogates = null, 
-                            Action<object> postDeserializationCallback = null, IDictionary<Type, DynamicMethod> readMethods = null, bool isGenerating = false)
+	    public ObjectReader(Stream stream, VersionTolerancePolicy versionTolerancePolicy, InheritanceAwareList<Delegate> objectsForSurrogates = null,
+                            Action<object> postDeserializationCallback = null, ConcurrentDictionary<Type, DynamicMethod> readMethods = null, bool isGenerating = false)
 		{
 			if(objectsForSurrogates == null)
 			{
@@ -138,7 +139,7 @@ namespace AntMicro.Migrant
 			if(!readMethodsCache.ContainsKey(type))
 			{
 				var rmg = new ReadMethodGenerator(type, stamper, versionTolerancePolicy);
-				readMethodsCache.Add(type, rmg.Method);
+				readMethodsCache.TryAdd(type, rmg.Method);
 			}
 		}
 
@@ -619,7 +620,7 @@ namespace AntMicro.Migrant
 
 		private bool useGeneratedDeserialization;
 		internal AutoResizingList<object> deserializedObjects;
-		private IDictionary<Type, DynamicMethod> readMethodsCache;
+        private ConcurrentDictionary<Type, DynamicMethod> readMethodsCache;
 		private Dictionary<Type, Func<Int32, object>> delegatesCache;
 		internal PrimitiveReader reader;
 		private TypeStampReader stamper;
