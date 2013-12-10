@@ -71,9 +71,6 @@ namespace AntMicro.Migrant
 	    /// <param name='isGenerating'>
 	    /// True if read methods are to be generated, false if one wants to use reflection.
 	    /// </param>
-	    /// <param name="versionToleranceLevel"> 
-	    /// Describes the tolerance level of this reader when handling discrepancies in type description (new or missing fields, etc.).
-	    /// </param> 
 	    public ObjectReader(Stream stream, VersionTolerancePolicy versionTolerancePolicy, InheritanceAwareList<Delegate> objectsForSurrogates = null, 
                             Action<object> postDeserializationCallback = null, IDictionary<Type, DynamicMethod> readMethods = null, bool isGenerating = false)
 		{
@@ -626,7 +623,6 @@ namespace AntMicro.Migrant
 		private Dictionary<Type, Func<Int32, object>> delegatesCache;
 		internal PrimitiveReader reader;
 		private TypeStampReader stamper;
-		private readonly VersionToleranceLevel versionToleranceLevel;
 		private readonly List<Type> typeList;
 		private readonly List<MethodInfo> methodList;
 		private readonly Stream stream;
