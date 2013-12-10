@@ -74,7 +74,7 @@ namespace AntMicro.Migrant
                 .SetSurrogate(type => new TypeSurrogate(type));
             this
                 .ForSurrogate<TypeSurrogate>()
-                .SetObject(surrogate => surrogate.GetType());
+                .SetObject(surrogate => surrogate.GetRuntimeType());
 
             this
                 .ForObject<System.Text.RegularExpressions.Regex>()
@@ -211,6 +211,13 @@ namespace AntMicro.Migrant
 		/// </param>
 		public static T DeepClone<T>(T toClone, Settings settings = null)
 		{
+            if (settings == null)
+            {
+                settings = new Settings(
+                    versionTolerance: VersionToleranceLevel.Exact,
+                    enableFrameworkVersionCompatability: false); // default settings
+            }
+
 			var serializer = new Serializer(settings);
 			var stream = new MemoryStream();
 			serializer.Serialize(toClone, stream);
@@ -373,7 +380,7 @@ namespace AntMicro.Migrant
                 _fullTypeName = type.AssemblyQualifiedName;
             }
 
-            public object GetType()
+            public object GetRuntimeType()
             {
                 return Type.GetType(_fullTypeName);
             }
