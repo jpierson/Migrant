@@ -197,6 +197,33 @@ namespace AntMicro.Migrant
 			return InnerReadInteger();
 		}
 
+        /// <summary>
+        /// Reads and returns <see cref="System.Decimal" />.
+        /// </summary>
+        public decimal ReadDecimal()
+        {
+            var bytes = ReadBytes(16);
+            //var integers = new int[4];
+
+            var integers = new int[4];
+            //var a = new System.Collections.BitArray(bits);
+            for (var integerIndex = 0; integerIndex < integers.Length; integerIndex++)
+            {
+                integers[integerIndex] = BitConverter.ToInt32(bytes, integerIndex * 4);
+                //for (var byteIndex = 0; byteIndex < bytes.Length; byteIndex++)
+                //{
+                //    buffer[currentBufferPosition++] = bytes[byteIndex];
+                //}
+            }
+
+            //for (var i = 0; i < 4; i++)
+            //{
+            //    integers[i] = BitConverter.ToInt32(bytes, i * 4);
+            //}
+
+            return new decimal(integers);
+        }
+
 		/// <summary>
 		/// Reads and returns <see cref="System.Char" />.
 		/// </summary>

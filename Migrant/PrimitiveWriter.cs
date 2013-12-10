@@ -201,6 +201,38 @@ namespace AntMicro.Migrant
 			InnerWriteInteger(value, sizeof(ulong) + 2);
 		}
 
+        /// <summary>
+        /// Writes the specified value of type <see cref="System.Decimal" />.
+        /// </summary>
+        public void Write(decimal value)
+        {
+            //var bits = decimal.GetBits(value);
+            //var sizeInBytes = sizeof(decimal) + 1;
+            //var valueToWrite = (value << 1) ^ (value >> 127);
+            ////InnerWriteInteger((uint)valueToWrite, sizeof(decimal) + 1);
+            //var a = new System.Collections.BitArray(bits);
+
+            //CheckBuffer(sizeInBytes);
+            //while (value > 127)
+            //{
+            //    buffer[currentBufferPosition++] = (byte)(a.Or(128));
+            //    value >>= 7;
+            //}
+            //buffer[currentBufferPosition++] = (byte)(value & 127);
+            CheckBuffer(16);
+
+            var integers = decimal.GetBits(value);
+            //var a = new System.Collections.BitArray(bits);
+            for (var integerIndex = 0; integerIndex < integers.Length; integerIndex++)
+            {
+                var bytes = BitConverter.GetBytes(integers[integerIndex]);
+                for (var byteIndex = 0; byteIndex < bytes.Length; byteIndex++)
+                {
+                    buffer[currentBufferPosition++] = bytes[byteIndex];    
+                }
+            }
+        }
+
 		/// <summary>
 		/// Writes the specified value of type <see cref="System.Char" />.
 		/// </summary>
