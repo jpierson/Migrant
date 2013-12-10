@@ -637,7 +637,7 @@ namespace Migrant.Generators
 				generator.Emit(OpCodes.Dup);
 				generator.Emit(OpCodes.Brfalse, returnNullNullableLabel);
 
-				if(isBoxed)
+				if(isBoxed) // NOTE: This will always be true!
 				{
 					generator.Emit(OpCodes.Unbox_Any, nullableActualType);
 				}
